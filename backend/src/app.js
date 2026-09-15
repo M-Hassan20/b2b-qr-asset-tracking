@@ -34,7 +34,7 @@ export const createApp = () => {
 
   // 404 Route Handler
   app.use('*', (req, res, next) => {
-    next(new ApiError(404, 'NOT_FOUND', 'Endpoint does not exist.'));
+    next(new ApiError(404, 'NOT_FOUND', 'The requested endpoint does not exist.'));
   });
 
   // Global Error Handler

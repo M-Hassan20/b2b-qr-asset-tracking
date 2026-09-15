@@ -109,7 +109,11 @@ export class AssetService {
     const totalPages = Math.ceil(total / limit) || 0;
 
     return {
-      data: assets.map((a) => a.toJSON()),
+      data: assets.map((a) => {
+        const json = a.toJSON();
+        delete json.qrToken;
+        return json;
+      }),
       meta: {
         page,
         limit,
@@ -125,7 +129,7 @@ export class AssetService {
   static async getAssetById(tenantId, assetId, { host = 'localhost:5173', includeQrImage = false } = {}) {
     const asset = await Asset.findOne({ _id: assetId, tenantId });
     if (!asset) {
-      throw new ApiError(404, 'NOT_FOUND', 'Asset does not exist within the caller\'s tenant');
+      throw new ApiError(404, 'NOT_FOUND', 'The requested asset could not be found.');
     }
 
     const json = asset.toJSON();
@@ -196,7 +200,7 @@ export class AssetService {
   static async updateMetadata(tenantId, userId, assetId, updateData, host = 'localhost:5173') {
     const asset = await Asset.findOne({ _id: assetId, tenantId });
     if (!asset) {
-      throw new ApiError(404, 'NOT_FOUND', 'Asset does not exist within tenant');
+      throw new ApiError(404, 'NOT_FOUND', 'The requested asset could not be found.');
     }
 
     const previousValue = {};
@@ -235,7 +239,7 @@ export class AssetService {
   static async assignAsset(tenantId, userId, assetId, { employeeId, locationId, note }, host = 'localhost:5173') {
     const asset = await Asset.findOne({ _id: assetId, tenantId });
     if (!asset) {
-      throw new ApiError(404, 'NOT_FOUND', 'Asset, employee, or location not found');
+      throw new ApiError(404, 'NOT_FOUND', 'The requested asset could not be found.');
     }
 
     // EC 07: Retired asset check
@@ -248,10 +252,10 @@ export class AssetService {
     const currentLocId = asset.assignedLocationId ? asset.assignedLocationId.toString() : null;
 
     if (employeeId && currentEmpId === employeeId) {
-      throw new ApiError(409, 'CONFLICT', 'Asset is already assigned to this employee.');
+      throw new ApiError(409, 'CONFLICT', 'This asset is already assigned to this employee.');
     }
     if (locationId && currentLocId === locationId) {
-      throw new ApiError(409, 'CONFLICT', 'Asset is already assigned to this location.');
+      throw new ApiError(409, 'CONFLICT', 'This asset is already assigned to this location.');
     }
 
     const previousValue = {
@@ -265,10 +269,10 @@ export class AssetService {
     if (employeeId) {
       const employee = await Employee.findOne({ _id: employeeId, tenantId });
       if (!employee) {
-        throw new ApiError(404, 'NOT_FOUND', 'Asset, employee, or location not found');
+        throw new ApiError(404, 'NOT_FOUND', 'The selected employee could not be found.');
       }
       if (employee.status === 'inactive') {
-        throw new ApiError(409, 'CONFLICT', 'Cannot assign to an inactive employee.');
+        throw new ApiError(409, 'CONFLICT', 'Cannot assign assets to an inactive employee.');
       }
       asset.assignedEmployeeId = employee._id;
       asset.assignedLocationId = null;
@@ -279,7 +283,7 @@ export class AssetService {
     } else if (locationId) {
       const location = await Location.findOne({ _id: locationId, tenantId });
       if (!location) {
-        throw new ApiError(404, 'NOT_FOUND', 'Asset, employee, or location not found');
+        throw new ApiError(404, 'NOT_FOUND', 'The selected location could not be found.');
       }
       asset.assignedLocationId = location._id;
       asset.assignedEmployeeId = null;
@@ -310,7 +314,7 @@ export class AssetService {
   static async unassignAsset(tenantId, userId, assetId, note, host = 'localhost:5173') {
     const asset = await Asset.findOne({ _id: assetId, tenantId });
     if (!asset) {
-      throw new ApiError(404, 'NOT_FOUND', 'Asset not found within tenant');
+      throw new ApiError(404, 'NOT_FOUND', 'The requested asset could not be found.');
     }
 
     if (asset.status === 'Retired') {
@@ -358,7 +362,7 @@ export class AssetService {
   static async changeStatus(tenantId, userId, assetId, newStatus, note, host = 'localhost:5173') {
     const asset = await Asset.findOne({ _id: assetId, tenantId });
     if (!asset) {
-      throw new ApiError(404, 'NOT_FOUND', 'Asset not found within tenant');
+      throw new ApiError(404, 'NOT_FOUND', 'The requested asset could not be found.');
     }
 
     if (asset.status === 'Retired') {
@@ -366,11 +370,11 @@ export class AssetService {
     }
 
     if (newStatus === 'Available' && (asset.assignedEmployeeId || asset.assignedLocationId)) {
-      throw new ApiError(409, 'CONFLICT', 'Cannot set status to Available while asset is assigned. Unassign the asset first.');
+      throw new ApiError(409, 'CONFLICT', 'Cannot set status to Available while asset is assigned. Please unassign the asset first.');
     }
 
     if (newStatus === 'Assigned' && !asset.assignedEmployeeId && !asset.assignedLocationId) {
-      throw new ApiError(409, 'CONFLICT', 'Setting Assigned requires an employee or location assignment.');
+      throw new ApiError(409, 'CONFLICT', 'To set status to Assigned, please assign the asset to an employee or location.');
     }
 
     const previousStatus = asset.status;
@@ -396,7 +400,7 @@ export class AssetService {
   static async regenerateQr(tenantId, userId, assetId, host = 'localhost:5173') {
     const asset = await Asset.findOne({ _id: assetId, tenantId });
     if (!asset) {
-      throw new ApiError(404, 'NOT_FOUND', 'Asset not found within tenant');
+      throw new ApiError(404, 'NOT_FOUND', 'The requested asset could not be found.');
     }
 
     const oldToken = asset.qrToken;

@@ -24,7 +24,7 @@ export const errorHandler = (err, req, res, next) => {
     return res.status(404).json({
       error: {
         code: 'NOT_FOUND',
-        message: 'Resource does not exist within the caller\'s tenant'
+        message: 'The requested resource could not be found.'
       }
     });
   }
@@ -34,7 +34,7 @@ export const errorHandler = (err, req, res, next) => {
     return res.status(400).json({
       error: {
         code: 'BAD_REQUEST',
-        message: 'Malformed request syntax not caught by schema validation'
+        message: 'Invalid request format. Please check your data and try again.'
       }
     });
   }
@@ -44,7 +44,7 @@ export const errorHandler = (err, req, res, next) => {
   return res.status(500).json({
     error: {
       code: 'INTERNAL_ERROR',
-      message: 'Unexpected server fault'
+      message: 'An unexpected error occurred. Please try again later.'
     }
   });
 };

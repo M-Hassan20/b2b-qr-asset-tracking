@@ -60,6 +60,16 @@ export const DashboardPage = ({ user, onLogout }) => {
   const [employees, setEmployees] = useState([]);
   const [locations, setLocations] = useState([]);
 
+  // Toast notification state
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'error') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast((curr) => (curr?.message === message ? null : curr));
+    }, 4500);
+  };
+
   const isAdmin = user?.role === 'Admin';
 
   const fetchAssets = async (page = 1) => {
@@ -76,7 +86,9 @@ export const DashboardPage = ({ user, onLogout }) => {
       setAssets(res.data || []);
       setMeta(res.meta || { page: 1, limit: 20, total: 0, totalPages: 0 });
     } catch (err) {
-      setError(err.message || 'Failed to fetch assets');
+      const friendlyMsg = err.message || 'Unable to load asset list. Please check your connection and try again.';
+      setError(friendlyMsg);
+      showToast(friendlyMsg, 'error');
     } finally {
       setLoading(false);
     }
@@ -100,7 +112,7 @@ export const DashboardPage = ({ user, onLogout }) => {
       setEmployees(empRes.data || []);
       setLocations(locRes.data || []);
     } catch (err) {
-      console.error('Error fetching ref data', err);
+      console.error('Error fetching reference data', err);
     }
   };
 
@@ -122,7 +134,7 @@ export const DashboardPage = ({ user, onLogout }) => {
       setShowMobilePreview(false);
       setPublicScanPreview(null);
     } catch (err) {
-      alert(err.message);
+      showToast(err.message || 'Unable to load asset details. Please try again.', 'error');
     }
   };
 
@@ -135,7 +147,7 @@ export const DashboardPage = ({ user, onLogout }) => {
       const res = await apiClient.resolvePublicScan(asset.qrToken, tenantId);
       setPublicScanPreview(res.data);
     } catch (err) {
-      setPublicScanPreview({ error: err.message || 'Public profile unavailable' });
+      setPublicScanPreview({ error: err.message || 'Public profile is currently unavailable.' });
     } finally {
       setPreviewLoading(false);
     }
@@ -148,7 +160,7 @@ export const DashboardPage = ({ user, onLogout }) => {
       setHistoryAsset(asset);
       setShowHistoryModal(true);
     } catch (err) {
-      alert(err.message);
+      showToast(err.message || 'Unable to fetch audit history.', 'error');
     }
   };
 
@@ -160,9 +172,10 @@ export const DashboardPage = ({ user, onLogout }) => {
     try {
       await apiClient.createAsset(formData);
       setShowCreateModal(false);
+      showToast('Asset registered successfully!', 'success');
       fetchAssets(1);
     } catch (err) {
-      alert(`Error creating asset: ${err.message}`);
+      showToast(err.message || 'Could not register asset. Please check required fields.', 'error');
     }
   };
 
@@ -171,26 +184,28 @@ export const DashboardPage = ({ user, onLogout }) => {
       const res = await apiClient.assignAsset(selectedAsset.id, assignmentData);
       setSelectedAsset(res.data);
       setShowAssignModal(false);
+      showToast('Asset assigned successfully!', 'success');
       fetchAssets(meta.page);
       if (showMobilePreview) {
         openMobileScanPreview(res.data);
       }
     } catch (err) {
-      alert(`Assignment failed: ${err.message}`);
+      showToast(err.message || 'Failed to assign asset.', 'error');
     }
   };
 
   const handleUnassignAsset = async () => {
-    if (!window.confirm('Are you sure you want to unassign this asset?')) return;
+    if (!window.confirm('Are you sure you want to unassign this asset and return it to inventory?')) return;
     try {
       const res = await apiClient.unassignAsset(selectedAsset.id, 'Returned to inventory');
       setSelectedAsset(res.data);
+      showToast('Asset returned to inventory.', 'success');
       fetchAssets(meta.page);
       if (showMobilePreview) {
         openMobileScanPreview(res.data);
       }
     } catch (err) {
-      alert(`Unassignment failed: ${err.message}`);
+      showToast(err.message || 'Failed to unassign asset.', 'error');
     }
   };
 
@@ -199,12 +214,13 @@ export const DashboardPage = ({ user, onLogout }) => {
       const res = await apiClient.changeStatus(selectedAsset.id, newStatus, note);
       setSelectedAsset(res.data);
       setShowStatusModal(false);
+      showToast(`Status updated to ${newStatus}.`, 'success');
       fetchAssets(meta.page);
       if (showMobilePreview) {
         openMobileScanPreview(res.data);
       }
     } catch (err) {
-      alert(`Status update failed: ${err.message}`);
+      showToast(err.message || 'Failed to update asset status.', 'error');
     }
   };
 
@@ -218,9 +234,9 @@ export const DashboardPage = ({ user, onLogout }) => {
         qrCodeUrl: res.data.qrCodeUrl,
         qrCodeImageBase64: res.data.qrCodeImageBase64
       });
-      alert('QR code successfully regenerated and previous token invalidated.');
+      showToast('QR code regenerated successfully. Previous token has been invalidated.', 'success');
     } catch (err) {
-      alert(`QR Regeneration failed: ${err.message}`);
+      showToast(err.message || 'Failed to regenerate QR code.', 'error');
     }
   };
 
@@ -246,14 +262,41 @@ export const DashboardPage = ({ user, onLogout }) => {
       );
       setPrintSheetAssets(detailed.filter(Boolean).map((d) => d.data));
     } catch (err) {
-      alert(`Failed to load QR sheet: ${err.message}`);
+      showToast(err.message || 'Failed to load QR sheet.', 'error');
     } finally {
       setPrintLoading(false);
     }
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+      {/* Toast Notification Banner */}
+      {toast && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '24px',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          padding: '12px 18px',
+          borderRadius: 'var(--radius-md)',
+          background: toast.type === 'success' ? 'rgba(16, 185, 129, 0.95)' : 'rgba(239, 68, 68, 0.95)',
+          color: '#ffffff',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(8px)',
+          fontSize: '0.875rem',
+          fontWeight: '600',
+          animation: 'modalFadeIn 0.2s ease-out'
+        }}>
+          {toast.type === 'success' ? <ShieldCheck size={18} /> : <AlertCircle size={18} />}
+          <span>{toast.message}</span>
+          <button onClick={() => setToast(null)} style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer', padding: '2px', marginLeft: '6px' }}>
+            <X size={16} />
+          </button>
+        </div>
+      )}
       {/* Top Navbar */}
       <header style={{ borderBottom: '1px solid var(--border-color)', background: 'var(--bg-secondary)', padding: '14px 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -1004,13 +1047,15 @@ const AssignAssetModal = ({ asset, employees, locations, onClose, onSubmit }) =>
   const [assignType, setAssignType] = useState('employee');
   const [selectedId, setSelectedId] = useState('');
   const [note, setNote] = useState('');
+  const [validationError, setValidationError] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!selectedId) {
-      alert('Please select an assignee.');
+      setValidationError(`Please select ${assignType === 'employee' ? 'an employee' : 'a location'} to continue.`);
       return;
     }
+    setValidationError('');
     if (assignType === 'employee') {
       onSubmit({ employeeId: selectedId, note });
     } else {
@@ -1029,6 +1074,12 @@ const AssignAssetModal = ({ asset, employees, locations, onClose, onSubmit }) =>
         </div>
 
         <form onSubmit={handleSubmit} style={{ padding: '24px' }}>
+          {validationError && (
+            <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: 'var(--radius-md)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', color: '#fca5a5', fontSize: '0.8125rem' }}>
+              <AlertCircle size={16} />
+              <span>{validationError}</span>
+            </div>
+          )}
           <div className="form-group">
             <label className="form-label">Assignment Target Type</label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>

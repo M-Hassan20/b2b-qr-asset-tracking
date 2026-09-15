@@ -42,7 +42,7 @@ export class EmployeeService {
   static async getEmployeeById(tenantId, employeeId, role) {
     const employee = await Employee.findOne({ _id: employeeId, tenantId });
     if (!employee) {
-      throw new ApiError(404, 'NOT_FOUND', 'Employee not found within tenant');
+      throw new ApiError(404, 'NOT_FOUND', 'The requested employee could not be found.');
     }
 
     const json = employee.toJSON();

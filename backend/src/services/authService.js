@@ -10,19 +10,19 @@ export class AuthService {
     const user = await User.findOne({ email: email.toLowerCase().trim() });
     if (!user) {
       // Prevent user enumeration: 401 for wrong email or wrong password
-      throw new ApiError(401, 'UNAUTHORIZED', 'Email not found, wrong password, inactive tenant, or different tenant');
+      throw new ApiError(401, 'UNAUTHORIZED', 'Invalid email address or password. Please try again.');
     }
 
     // 2. Verify tenant is active
     const tenant = await Tenant.findById(user.tenantId);
     if (!tenant || !tenant.isActive) {
-      throw new ApiError(401, 'UNAUTHORIZED', 'Organization account is inactive.');
+      throw new ApiError(401, 'UNAUTHORIZED', 'Organization account is inactive. Please contact your administrator.');
     }
 
     // 3. Verify password
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
-      throw new ApiError(401, 'UNAUTHORIZED', 'Email not found, wrong password, inactive tenant, or different tenant');
+      throw new ApiError(401, 'UNAUTHORIZED', 'Invalid email address or password. Please try again.');
     }
 
     // 4. Generate JWT payload: { sub: userId, tenantId, role, iat, exp }

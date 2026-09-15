@@ -1,4 +1,7 @@
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '') || '/api';
+const rawBase = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
+const API_BASE = rawBase
+  ? (rawBase.endsWith('/api') ? rawBase : `${rawBase}/api`)
+  : '/api';
 
 export const apiClient = {
   getToken() {
@@ -37,18 +40,50 @@ export const apiClient = {
       config.body = JSON.stringify(options.body);
     }
 
-    const response = await fetch(`${API_BASE}${endpoint}`, config);
-    const data = await response.json().catch(() => ({}));
+    try {
+      const response = await fetch(`${API_BASE}${endpoint}`, config);
+      const data = await response.json().catch(() => ({}));
 
-    if (!response.ok) {
-      const err = new Error(data.error?.message || 'Request failed');
-      err.status = response.status;
-      err.code = data.error?.code || 'UNKNOWN_ERROR';
-      err.fields = data.error?.fields || {};
+      if (!response.ok) {
+        let message = data.error?.message;
+
+        if (!message) {
+          if (response.status === 401) {
+            message = 'Invalid email address or password. Please try again.';
+          } else if (response.status === 403) {
+            message = 'You do not have permission to perform this action.';
+          } else if (response.status === 404) {
+            message = 'The requested item or endpoint was not found.';
+          } else if (response.status === 409) {
+            message = 'This action conflicts with current asset state or existing records.';
+          } else if (response.status === 422) {
+            message = 'Please check the entered information and try again.';
+          } else if (response.status === 429) {
+            message = 'Too many requests. Please wait a moment and try again.';
+          } else if (response.status >= 500) {
+            message = 'The server encountered an error. Please try again in a few moments.';
+          } else {
+            message = 'Something went wrong. Please try again.';
+          }
+        }
+
+        const err = new Error(message);
+        err.status = response.status;
+        err.code = data.error?.code || 'ERROR';
+        err.fields = data.error?.fields || {};
+        throw err;
+      }
+
+      return data;
+    } catch (err) {
+      if (err.name === 'TypeError' && err.message.toLowerCase().includes('fetch')) {
+        const netErr = new Error('Unable to connect to the server. Please check your internet connection or backend server status.');
+        netErr.status = 0;
+        netErr.code = 'NETWORK_ERROR';
+        throw netErr;
+      }
       throw err;
     }
-
-    return data;
   },
 
   // Auth

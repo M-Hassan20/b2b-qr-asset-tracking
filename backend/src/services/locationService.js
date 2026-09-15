@@ -34,7 +34,7 @@ export class LocationService {
   static async getLocationById(tenantId, locationId) {
     const location = await Location.findOne({ _id: locationId, tenantId });
     if (!location) {
-      throw new ApiError(404, 'NOT_FOUND', 'Location not found within tenant');
+      throw new ApiError(404, 'NOT_FOUND', 'The requested location could not be found.');
     }
     return location.toJSON();
   }

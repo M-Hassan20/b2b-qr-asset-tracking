@@ -2,14 +2,21 @@ import dns from 'node:dns';
 import mongoose from 'mongoose';
 
 // Only override DNS servers if running locally or explicitly requested via USE_CUSTOM_DNS
-if (process.env.USE_CUSTOM_DNS === 'true') {
-  dns.setServers([
+// if (process.env.USE_CUSTOM_DNS === 'true') {
+//   dns.setServers([
+//     '8.8.8.8',
+//     '8.8.4.4',
+//     '1.1.1.1',
+//     '1.0.0.1'
+//   ]);
+// }
+
+dns.setServers([
     '8.8.8.8',
     '8.8.4.4',
     '1.1.1.1',
     '1.0.0.1'
   ]);
-}
 
 export const connectDB = async () => {
   const uri = process.env.MONGODB_URI;

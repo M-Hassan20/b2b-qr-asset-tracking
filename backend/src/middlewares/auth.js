@@ -5,12 +5,12 @@ import { Tenant } from '../models/Tenant.js';
 export const requireAuth = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return next(new ApiError(401, 'UNAUTHORIZED', 'Authentication required.'));
+    return next(new ApiError(401, 'UNAUTHORIZED', 'Authentication required. Please sign in.'));
   }
 
   const token = authHeader.split(' ')[1];
   if (!token) {
-    return next(new ApiError(401, 'UNAUTHORIZED', 'Missing or invalid JWT'));
+    return next(new ApiError(401, 'UNAUTHORIZED', 'Your session is missing or expired. Please sign in again.'));
   }
 
   const secret = process.env.JWT_SECRET || 'vision71_super_secret_jwt_key_asset_tracking_2026';
@@ -20,13 +20,13 @@ export const requireAuth = async (req, res, next) => {
     const { sub: userId, tenantId, role } = payload;
 
     if (!userId || !tenantId || !role) {
-      return next(new ApiError(401, 'UNAUTHORIZED', 'Missing or invalid JWT'));
+      return next(new ApiError(401, 'UNAUTHORIZED', 'Your session is invalid. Please sign in again.'));
     }
 
     // EC 12: Verify tenant exists and is active
     const tenant = await Tenant.findById(tenantId);
     if (!tenant || !tenant.isActive) {
-      return next(new ApiError(401, 'UNAUTHORIZED', 'Organization account is inactive.'));
+      return next(new ApiError(401, 'UNAUTHORIZED', 'Organization account is inactive. Please contact your administrator.'));
     }
 
     // Attach to req.user for downstream tenant isolation
@@ -38,6 +38,6 @@ export const requireAuth = async (req, res, next) => {
 
     next();
   } catch (error) {
-    return next(new ApiError(401, 'UNAUTHORIZED', 'Missing or invalid JWT'));
+    return next(new ApiError(401, 'UNAUTHORIZED', 'Your session has expired. Please sign in again.'));
   }
 };
