@@ -247,20 +247,14 @@ export class AssetService {
       throw new ApiError(409, 'CONFLICT', 'Retired assets cannot be modified.');
     }
 
-    // Check if already assigned to the exact same target
-    const currentEmpId = asset.assignedEmployeeId ? asset.assignedEmployeeId.toString() : null;
-    const currentLocId = asset.assignedLocationId ? asset.assignedLocationId.toString() : null;
-
-    if (employeeId && currentEmpId === employeeId) {
-      throw new ApiError(409, 'CONFLICT', 'This asset is already assigned to this employee.');
-    }
-    if (locationId && currentLocId === locationId) {
-      throw new ApiError(409, 'CONFLICT', 'This asset is already assigned to this location.');
+    // EC 05: Block reassigning an already assigned asset until explicitly unassigned
+    if (asset.assignedEmployeeId || asset.assignedLocationId) {
+      throw new ApiError(409, 'CONFLICT', 'Asset is already assigned. Call /unassign before reassigning.');
     }
 
     const previousValue = {
-      assignedEmployeeId: currentEmpId,
-      assignedLocationId: currentLocId
+      assignedEmployeeId: null,
+      assignedLocationId: null
     };
 
     let eventType = '';

@@ -707,26 +707,27 @@ export const DashboardPage = ({ user, onLogout }) => {
                   </div>
 
                   <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => {
-                        loadReferenceData();
-                        setShowAssignModal(true);
-                      }}
-                      disabled={selectedAsset.status === 'Retired'}
-                    >
-                      <UserCheck size={14} />
-                      <span>{selectedAsset.assignedEmployeeId || selectedAsset.assignedLocationId ? 'Reassign' : 'Assign'}</span>
-                    </button>
-
-                    {(selectedAsset.assignedEmployeeId || selectedAsset.assignedLocationId) && (
+                    {!(selectedAsset.assignedEmployeeId || selectedAsset.assignedLocationId) ? (
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => {
+                          loadReferenceData();
+                          setShowAssignModal(true);
+                        }}
+                        disabled={selectedAsset.status === 'Retired'}
+                      >
+                        <UserCheck size={14} />
+                        <span>Assign</span>
+                      </button>
+                    ) : (
                       <button
                         className="btn btn-secondary btn-sm"
                         onClick={handleUnassignAsset}
                         disabled={selectedAsset.status === 'Retired'}
+                        style={{ color: '#f87171' }}
                       >
                         <UserX size={14} />
-                        <span>Unassign</span>
+                        <span>Unassign Asset</span>
                       </button>
                     )}
 

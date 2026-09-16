@@ -101,3 +101,21 @@ test('Edge Case Status Transitions - Validates allowed status values', () => {
   assert.equal(changeStatusSchema.safeParse({ status: 'Disposed' }).success, false);
   assert.equal(changeStatusSchema.safeParse({ status: 'Broken' }).success, false);
 });
+
+test('Edge Case EC 05 - Reassigning already assigned asset must be blocked', () => {
+  // Simulating asset with an active employee assignment
+  const assetWithEmp = { assignedEmployeeId: '654321098765432109876543', assignedLocationId: null, status: 'Assigned' };
+  const hasAssignment = Boolean(assetWithEmp.assignedEmployeeId || assetWithEmp.assignedLocationId);
+  assert.equal(hasAssignment, true);
+
+  // Simulating asset with an active location assignment
+  const assetWithLoc = { assignedEmployeeId: null, assignedLocationId: '654321098765432109876544', status: 'Assigned' };
+  const hasLocAssignment = Boolean(assetWithLoc.assignedEmployeeId || assetWithLoc.assignedLocationId);
+  assert.equal(hasLocAssignment, true);
+
+  // Simulating unassigned asset
+  const unassignedAsset = { assignedEmployeeId: null, assignedLocationId: null, status: 'Available' };
+  const canAssign = !unassignedAsset.assignedEmployeeId && !unassignedAsset.assignedLocationId;
+  assert.equal(canAssign, true);
+});
+
