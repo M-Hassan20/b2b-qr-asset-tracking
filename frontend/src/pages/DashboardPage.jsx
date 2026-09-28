@@ -72,8 +72,8 @@ export const DashboardPage = ({ user, onLogout }) => {
 
   const isAdmin = user?.role === 'Admin';
 
-  const fetchAssets = async (page = 1) => {
-    setLoading(true);
+  const fetchAssets = async (page = 1, showLoading = true) => {
+    if (showLoading) setLoading(true);
     setError(null);
     try {
       const res = await apiClient.getAssets({
@@ -90,12 +90,13 @@ export const DashboardPage = ({ user, onLogout }) => {
       setError(friendlyMsg);
       showToast(friendlyMsg, 'error');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchAssets(1);
+    loadReferenceData();
   }, [categoryFilter, statusFilter]);
 
   const handleSearchSubmit = (e) => {
@@ -182,15 +183,18 @@ export const DashboardPage = ({ user, onLogout }) => {
   const handleAssignAsset = async (assignmentData) => {
     try {
       const res = await apiClient.assignAsset(selectedAsset.id, assignmentData);
-      setSelectedAsset(res.data);
+      const updated = res.data;
+      setSelectedAsset(curr => ({ ...curr, ...updated }));
+      setAssets(prev => prev.map(a => a.id === selectedAsset.id ? { ...a, ...updated } : a));
       setShowAssignModal(false);
       showToast('Asset assigned successfully!', 'success');
-      fetchAssets(meta.page);
+      fetchAssets(meta.page, false);
       if (showMobilePreview) {
-        openMobileScanPreview(res.data);
+        openMobileScanPreview(updated);
       }
     } catch (err) {
       showToast(err.message || 'Failed to assign asset.', 'error');
+      throw err;
     }
   };
 
@@ -198,11 +202,13 @@ export const DashboardPage = ({ user, onLogout }) => {
     if (!window.confirm('Are you sure you want to unassign this asset and return it to inventory?')) return;
     try {
       const res = await apiClient.unassignAsset(selectedAsset.id, 'Returned to inventory');
-      setSelectedAsset(res.data);
+      const updated = res.data;
+      setSelectedAsset(curr => ({ ...curr, ...updated }));
+      setAssets(prev => prev.map(a => a.id === selectedAsset.id ? { ...a, ...updated } : a));
       showToast('Asset returned to inventory.', 'success');
-      fetchAssets(meta.page);
+      fetchAssets(meta.page, false);
       if (showMobilePreview) {
-        openMobileScanPreview(res.data);
+        openMobileScanPreview(updated);
       }
     } catch (err) {
       showToast(err.message || 'Failed to unassign asset.', 'error');
@@ -212,15 +218,18 @@ export const DashboardPage = ({ user, onLogout }) => {
   const handleStatusChange = async (newStatus, note) => {
     try {
       const res = await apiClient.changeStatus(selectedAsset.id, newStatus, note);
-      setSelectedAsset(res.data);
+      const updated = res.data;
+      setSelectedAsset(curr => ({ ...curr, ...updated }));
+      setAssets(prev => prev.map(a => a.id === selectedAsset.id ? { ...a, ...updated } : a));
       setShowStatusModal(false);
       showToast(`Status updated to ${newStatus}.`, 'success');
-      fetchAssets(meta.page);
+      fetchAssets(meta.page, false);
       if (showMobilePreview) {
-        openMobileScanPreview(res.data);
+        openMobileScanPreview(updated);
       }
     } catch (err) {
       showToast(err.message || 'Failed to update asset status.', 'error');
+      throw err;
     }
   };
 
@@ -1049,18 +1058,24 @@ const AssignAssetModal = ({ asset, employees, locations, onClose, onSubmit }) =>
   const [selectedId, setSelectedId] = useState('');
   const [note, setNote] = useState('');
   const [validationError, setValidationError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedId) {
       setValidationError(`Please select ${assignType === 'employee' ? 'an employee' : 'a location'} to continue.`);
       return;
     }
     setValidationError('');
-    if (assignType === 'employee') {
-      onSubmit({ employeeId: selectedId, note });
-    } else {
-      onSubmit({ locationId: selectedId, note });
+    setIsSubmitting(true);
+    try {
+      if (assignType === 'employee') {
+        await onSubmit({ employeeId: selectedId, note });
+      } else {
+        await onSubmit({ locationId: selectedId, note });
+      }
+    } catch {
+      setIsSubmitting(false);
     }
   };
 
@@ -1068,7 +1083,9 @@ const AssignAssetModal = ({ asset, employees, locations, onClose, onSubmit }) =>
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-container" onClick={(e) => e.stopPropagation()}>
         <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#ffffff' }}>Assign {asset.assetCode}</h2>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#ffffff' }}>
+            Assign {asset.assetCode}
+          </h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
             <X size={20} />
           </button>
@@ -1151,8 +1168,17 @@ const AssignAssetModal = ({ asset, employees, locations, onClose, onSubmit }) =>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-            <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
-            <button type="submit" className="btn btn-primary">Confirm Assignment</button>
+            <button type="button" onClick={onClose} className="btn btn-secondary" disabled={isSubmitting}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <RefreshCw size={14} className="animate-spin" />
+                  <span>Assigning...</span>
+                </>
+              ) : (
+                <span>Confirm Assignment</span>
+              )}
+            </button>
           </div>
         </form>
       </div>
@@ -1163,10 +1189,16 @@ const AssignAssetModal = ({ asset, employees, locations, onClose, onSubmit }) =>
 const StatusChangeModal = ({ asset, onClose, onSubmit }) => {
   const [status, setStatus] = useState(asset.status);
   const [note, setNote] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onSubmit(status, note);
+    setIsSubmitting(true);
+    try {
+      await onSubmit(status, note);
+    } catch {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -1207,8 +1239,17 @@ const StatusChangeModal = ({ asset, onClose, onSubmit }) => {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-            <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
-            <button type="submit" className="btn btn-primary">Update Status</button>
+            <button type="button" onClick={onClose} className="btn btn-secondary" disabled={isSubmitting}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <RefreshCw size={14} className="animate-spin" />
+                  <span>Updating...</span>
+                </>
+              ) : (
+                <span>Update Status</span>
+              )}
+            </button>
           </div>
         </form>
       </div>

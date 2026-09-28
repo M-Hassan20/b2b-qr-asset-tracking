@@ -145,6 +145,20 @@ export class AssetService {
   }
 
   /**
+   * Helper to format an asset document as JSON with QR URL without an extra DB round-trip
+   */
+  static formatAssetResponse(asset, host = 'localhost:5173', qrCodeImageBase64 = null) {
+    const json = asset.toJSON();
+    const scanUrl = QRService.buildScanUrl(host, asset.qrToken, asset.tenantId);
+    json.qrToken = asset.qrToken;
+    json.qrCodeUrl = scanUrl;
+    if (qrCodeImageBase64) {
+      json.qrCodeImageBase64 = qrCodeImageBase64;
+    }
+    return json;
+  }
+
+  /**
    * Creates a new asset
    */
   static async createAsset(tenantId, userId, assetData, host = 'localhost:5173') {
@@ -174,24 +188,27 @@ export class AssetService {
       qrToken
     });
 
-    await asset.save();
+    const scanUrl = QRService.buildScanUrl(host, qrToken, tenantId);
 
-    // Record 'Created' history event
-    await HistoryService.record({
-      tenantId,
-      assetId: asset._id,
-      eventType: 'Created',
-      previousValue: {},
-      newValue: {
-        assetCode: asset.assetCode,
-        name: asset.name,
-        status: asset.status
-      },
-      performedBy: userId,
-      note: null
-    });
+    const [_, __, qrImage] = await Promise.all([
+      asset.save(),
+      HistoryService.record({
+        tenantId,
+        assetId: asset._id,
+        eventType: 'Created',
+        previousValue: {},
+        newValue: {
+          assetCode: asset.assetCode,
+          name: asset.name,
+          status: asset.status
+        },
+        performedBy: userId,
+        note: null
+      }),
+      QRService.generateQrImageDataUrl(scanUrl)
+    ]);
 
-    return await this.getAssetById(tenantId, asset._id, { host, includeQrImage: true });
+    return this.formatAssetResponse(asset, host, qrImage);
   }
 
   /**
@@ -215,22 +232,23 @@ export class AssetService {
     });
 
     if (Object.keys(newValue).length === 0) {
-      return await this.getAssetById(tenantId, asset._id, { host, includeQrImage: true });
+      return this.formatAssetResponse(asset, host);
     }
 
-    await asset.save();
+    await Promise.all([
+      asset.save(),
+      HistoryService.record({
+        tenantId,
+        assetId: asset._id,
+        eventType: 'Updated',
+        previousValue,
+        newValue,
+        performedBy: userId,
+        note: null
+      })
+    ]);
 
-    await HistoryService.record({
-      tenantId,
-      assetId: asset._id,
-      eventType: 'Updated',
-      previousValue,
-      newValue,
-      performedBy: userId,
-      note: null
-    });
-
-    return await this.getAssetById(tenantId, asset._id, { host, includeQrImage: true });
+    return this.formatAssetResponse(asset, host);
   }
 
   /**
@@ -287,19 +305,20 @@ export class AssetService {
       newValue.assignedLocationId = location._id.toString();
     }
 
-    await asset.save();
+    await Promise.all([
+      asset.save(),
+      HistoryService.record({
+        tenantId,
+        assetId: asset._id,
+        eventType,
+        previousValue,
+        newValue,
+        performedBy: userId,
+        note: note || null
+      })
+    ]);
 
-    await HistoryService.record({
-      tenantId,
-      assetId: asset._id,
-      eventType,
-      previousValue,
-      newValue,
-      performedBy: userId,
-      note: note || null
-    });
-
-    return await this.getAssetById(tenantId, asset._id, { host, includeQrImage: true });
+    return this.formatAssetResponse(asset, host);
   }
 
   /**
@@ -317,7 +336,7 @@ export class AssetService {
 
     // Idempotent: If already unassigned, return 200 without writing history
     if (!asset.assignedEmployeeId && !asset.assignedLocationId) {
-      return await this.getAssetById(tenantId, asset._id, { host, includeQrImage: true });
+      return this.formatAssetResponse(asset, host);
     }
 
     const previousValue = {
@@ -332,22 +351,23 @@ export class AssetService {
       asset.status = 'Available';
     }
 
-    await asset.save();
+    await Promise.all([
+      asset.save(),
+      HistoryService.record({
+        tenantId,
+        assetId: asset._id,
+        eventType: 'Unassigned',
+        previousValue,
+        newValue: {
+          assignedEmployeeId: null,
+          assignedLocationId: null
+        },
+        performedBy: userId,
+        note: note || null
+      })
+    ]);
 
-    await HistoryService.record({
-      tenantId,
-      assetId: asset._id,
-      eventType: 'Unassigned',
-      previousValue,
-      newValue: {
-        assignedEmployeeId: null,
-        assignedLocationId: null
-      },
-      performedBy: userId,
-      note: note || null
-    });
-
-    return await this.getAssetById(tenantId, asset._id, { host, includeQrImage: true });
+    return this.formatAssetResponse(asset, host);
   }
 
   /**
@@ -373,19 +393,21 @@ export class AssetService {
 
     const previousStatus = asset.status;
     asset.status = newStatus;
-    await asset.save();
 
-    await HistoryService.record({
-      tenantId,
-      assetId: asset._id,
-      eventType: 'StatusChange',
-      previousValue: { status: previousStatus },
-      newValue: { status: newStatus },
-      performedBy: userId,
-      note: note || null
-    });
+    await Promise.all([
+      asset.save(),
+      HistoryService.record({
+        tenantId,
+        assetId: asset._id,
+        eventType: 'StatusChange',
+        previousValue: { status: previousStatus },
+        newValue: { status: newStatus },
+        performedBy: userId,
+        note: note || null
+      })
+    ]);
 
-    return await this.getAssetById(tenantId, asset._id, { host, includeQrImage: true });
+    return this.formatAssetResponse(asset, host);
   }
 
   /**
@@ -401,20 +423,21 @@ export class AssetService {
     const newToken = QRService.generateToken();
 
     asset.qrToken = newToken;
-    await asset.save();
-
-    await HistoryService.record({
-      tenantId,
-      assetId: asset._id,
-      eventType: 'Updated',
-      previousValue: { qrToken: oldToken },
-      newValue: { qrToken: newToken },
-      performedBy: userId,
-      note: 'QR code regenerated'
-    });
-
     const scanUrl = QRService.buildScanUrl(host, newToken, tenantId);
-    const qrImage = await QRService.generateQrImageDataUrl(scanUrl);
+
+    const [_, __, qrImage] = await Promise.all([
+      asset.save(),
+      HistoryService.record({
+        tenantId,
+        assetId: asset._id,
+        eventType: 'Updated',
+        previousValue: { qrToken: oldToken },
+        newValue: { qrToken: newToken },
+        performedBy: userId,
+        note: 'QR code regenerated'
+      }),
+      QRService.generateQrImageDataUrl(scanUrl)
+    ]);
 
     return {
       id: asset._id.toString(),

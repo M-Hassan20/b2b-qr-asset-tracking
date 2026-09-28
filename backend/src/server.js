@@ -3,6 +3,7 @@ dotenv.config();
 
 import { createApp } from './app.js';
 import { connectDB } from './config/db.js';
+import { PingerService } from './services/pingerService.js';
 
 const startServer = async () => {
   try {
@@ -18,6 +19,9 @@ const startServer = async () => {
       console.log(`  Network: http://0.0.0.0:${PORT}         `);
       console.log(`  Env:     ${process.env.NODE_ENV || 'development'}`);
       console.log(`=========================================`);
+
+      // Initialize Keep-Alive Pinger to keep Render awake
+      PingerService.startPinger();
     });
   } catch (error) {
     console.error('Failed to start server:', error);

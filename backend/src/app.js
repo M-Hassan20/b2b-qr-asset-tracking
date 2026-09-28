@@ -6,6 +6,7 @@ import assetRoutes from './routes/asset.routes.js';
 import employeeRoutes from './routes/employee.routes.js';
 import locationRoutes from './routes/location.routes.js';
 import { errorHandler, ApiError } from './middlewares/errorHandler.js';
+import { PingerService } from './services/pingerService.js';
 
 export const createApp = () => {
   const app = express();
@@ -20,9 +21,14 @@ export const createApp = () => {
   // JSON Body Parser
   app.use(express.json());
 
-  // Health check
+  // Health check & keep-alive monitor
   app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.status(200).json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptimeSeconds: Math.floor(process.uptime()),
+      pinger: PingerService.getStats()
+    });
   });
 
   // API Routes

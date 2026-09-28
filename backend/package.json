@@ -8,7 +8,9 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "seed": "node src/scripts/seed.js",
-    "test": "node --test src/tests/*.test.js"
+    "test": "node --test src/tests/*.test.js",
+    "bench": "node src/scripts/demonstrate_speed.js",
+    "pinger": "node src/scripts/demonstrate_speed.js --cron 7"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
